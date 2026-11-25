@@ -42,6 +42,7 @@ jobs:
         run: node check.mjs
         env:
           PROFILES_JSON: ${{ secrets.PROFILES_JSON }}
+          PROFILES_JSON_2: ${{ secrets.PROFILES_JSON_2 }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           INACTIVITY_MINUTES: ${{ vars.INACTIVITY_MINUTES }}
