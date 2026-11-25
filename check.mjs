@@ -19,7 +19,8 @@ const STATE_FILE = process.env.STATE_FILE || fileURLToPath(new URL('./state/stat
 const envOr = (k, d) => (process.env[k] && process.env[k].trim() !== '' ? process.env[k].trim() : d);
 
 const CONFIG = {
-  profiles: JSON.parse(envOr('PROFILES_JSON', '[]')),
+  // Dos secretos para que cada persona escriba solo su parte (con la API key de su cuenta).
+  profiles: [...JSON.parse(envOr('PROFILES_JSON', '[]')), ...JSON.parse(envOr('PROFILES_JSON_2', '[]'))],
   tgToken: envOr('TELEGRAM_BOT_TOKEN', ''),
   tgChat: envOr('TELEGRAM_CHAT_ID', ''),
   inactivityMin: Number(envOr('INACTIVITY_MINUTES', '45')),
