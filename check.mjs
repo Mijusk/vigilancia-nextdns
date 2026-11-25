@@ -80,12 +80,19 @@ async function telegram(text) {
     if (CONFIG.dryRun) console.log('---\n' + text + '\n---');
     return;
   }
-  const res = await fetch(`https://api.telegram.org/bot${CONFIG.tgToken}/sendMessage`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ chat_id: CONFIG.tgChat, text, parse_mode: 'HTML', disable_web_page_preview: true }),
-  });
-  if (!res.ok) throw new Error(`Telegram ${res.status}`);
+  // TELEGRAM_CHAT_ID admite varios ids separados por comas: el aviso llega a cada uno por privado.
+  // (Cada persona tiene que haber abierto el bot y pulsado "Iniciar" una vez.)
+  let failed = 0;
+  const chats = CONFIG.tgChat.split(',').map((x) => x.trim()).filter(Boolean);
+  for (const chat_id of chats) {
+    const res = await fetch(`https://api.telegram.org/bot${CONFIG.tgToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ chat_id, text, parse_mode: 'HTML', disable_web_page_preview: true }),
+    });
+    if (!res.ok) { failed++; log(`Telegram ${res.status} en el destinatario #${chats.indexOf(chat_id) + 1}`); }
+  }
+  if (failed === chats.length) throw new Error('Telegram no ha entregado el aviso a nadie');
 }
 
 const deviceMatches = (entry, p) =>
