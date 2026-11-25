@@ -1,0 +1,57 @@
+name: Vigilancia NextDNS
+
+on:
+  schedule:
+    - cron: '*/5 * * * *' # cada 5 minutos (GitHub puede retrasarlo unos minutos)
+  workflow_dispatch:
+    inputs:
+      test:
+        description: 'Mandar un mensaje de prueba a Telegram'
+        type: boolean
+        default: true
+
+concurrency:
+  group: vigilancia
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: write # para guardar el estado en la caché
+
+jobs:
+  vigilar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # El estado (qué avisos ya se mandaron) se guarda en la caché de Actions,
+      # no en el repo, para que no sea público.
+      - name: Recuperar estado
+        uses: actions/cache/restore@v4
+        with:
+          path: state
+          key: estado-${{ github.run_id }}
+          restore-keys: estado-
+
+      - name: Revisar perfiles
+        run: node check.mjs
+        env:
+          PROFILES_JSON: ${{ secrets.PROFILES_JSON }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          INACTIVITY_MINUTES: ${{ vars.INACTIVITY_MINUTES }}
+          QUIET_HOURS: ${{ vars.QUIET_HOURS }}
+          DAILY_SUMMARY_HOUR: ${{ vars.DAILY_SUMMARY_HOUR }}
+          SEND_TEST: ${{ inputs.test }}
+
+      - name: Guardar estado
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: state
+          key: estado-${{ github.run_id }}
