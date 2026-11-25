@@ -36,6 +36,14 @@ const CONFIG = {
 const SUSPICIOUS_REASON =
   /porn|gambl|dating|piracy|mixed|safe.?search|bypass|vpn|proxy|\btor\b|deny|parental|apuesta|citas|pirater|evasi|lista negra/i;
 
+// Webs cuyo NOMBRE suena a contenido adulto. Avisan aunque NextDNS NO las haya bloqueado
+// (así se ven las que se escapan del filtro). No se puede ver el texto de una búsqueda:
+// DNS solo sabe a qué web se conecta el móvil.
+const SUSPICIOUS_DOMAIN =
+  /porn|xxx|xvideo|xnxx|xhamster|hentai|nsfw|onlyfans|fansly|chaturbate|stripchat|bongacams|camsoda|livejasmin|myfreecams|escort|nude|naked|desnud|(^|[.-])putas?\b|follar|(^|[.-])sex|sexy|sexo|erotic|erotik|milf|camgirl|adult/i;
+// Falsos positivos conocidos (lugares, etc.).
+const DOMAIN_EXCEPTIONS = /essex|sussex|middlesex|wessex|adultswim/i;
+
 const now = () => Date.now();
 const log = (...a) => console.log(...a); // solo mensajes genéricos, nunca datos sensibles
 
@@ -107,18 +115,26 @@ async function checkBlocked(p, st) {
   const hits = [];
   let newest = since;
   let cursor;
+  // Se leen TODAS las consultas (bloqueadas y permitidas) para pillar también
+  // las webs de nombre sospechoso que el filtro no ha bloqueado.
   for (let page = 0; page < 5; page++) {
     const r = await api(`/profiles/${p.id}/logs`, p.apiKey, {
-      status: 'blocked', from: since, sort: 'asc', limit: 1000, cursor,
+      from: since, sort: 'asc', limit: 1000, cursor,
     });
     for (const e of r.data || []) {
       if (e.timestamp <= since) continue; // "from" es inclusivo
       if (e.timestamp > newest) newest = e.timestamp;
       if (!deviceMatches(e, p)) continue;
       const reasons = (e.reasons || []).map((x) => x.name || x.id);
-      if (reasons.some((x) => SUSPICIOUS_REASON.test(x)) ||
-          (e.reasons || []).some((x) => SUSPICIOUS_REASON.test(x.id || ''))) {
-        hits.push({ ts: e.timestamp, domain: e.domain, reason: reasons.join(', ') });
+      const blocked = e.status === 'blocked';
+      const badReason = blocked && (reasons.some((x) => SUSPICIOUS_REASON.test(x)) ||
+        (e.reasons || []).some((x) => SUSPICIOUS_REASON.test(x.id || '')));
+      const badName = SUSPICIOUS_DOMAIN.test(e.domain || '') && !DOMAIN_EXCEPTIONS.test(e.domain || '');
+      if (badReason || badName) {
+        hits.push({
+          ts: e.timestamp, domain: e.domain, blocked,
+          reason: blocked ? (reasons.join(', ') || 'bloqueada') : 'NO bloqueada',
+        });
       }
     }
     cursor = r.meta?.pagination?.cursor;
@@ -127,18 +143,28 @@ async function checkBlocked(p, st) {
   st.lastBlockedTs = newest;
   if (!hits.length) return [];
 
-  // Agrupa por dominio raíz para que el mensaje sea corto.
+  // Agrupa por dominio para que el mensaje sea corto.
   const byDomain = new Map();
   for (const h of hits) {
-    const k = h.domain;
-    const prev = byDomain.get(k);
-    byDomain.set(k, { ...h, count: (prev?.count || 0) + 1, first: prev?.first || h.ts });
+    const prev = byDomain.get(h.domain);
+    byDomain.set(h.domain, { ...h, count: (prev?.count || 0) + 1, first: prev?.first || h.ts });
   }
-  const lines = [...byDomain.values()].slice(0, 15).map(
-    (h) => `• ${localParts(new Date(h.first)).hhmm} · ${escapeHtml(h.domain)}${h.count > 1 ? ` (x${h.count})` : ''} — ${escapeHtml(h.reason)}`,
-  );
-  const extra = byDomain.size > 15 ? `\n…y ${byDomain.size - 15} más` : '';
-  return [`🚩 <b>${escapeHtml(p.name)}</b> ha intentado entrar en webs bloqueadas (${hits.length}):\n${lines.join('\n')}${extra}`];
+  const fmt = (h) => `• ${localParts(new Date(h.first)).hhmm} · ${escapeHtml(h.domain)}${h.count > 1 ? ` (x${h.count})` : ''} — ${escapeHtml(h.reason)}`;
+  const all = [...byDomain.values()];
+  const open = all.filter((h) => !h.blocked);
+  const closed = all.filter((h) => h.blocked);
+  const out = [];
+  if (open.length) {
+    out.push(`🚨 <b>${escapeHtml(p.name)}</b> ha entrado en webs de contenido sospechoso que el filtro <b>NO</b> ha bloqueado:\n` +
+      open.slice(0, 15).map(fmt).join('\n') + (open.length > 15 ? `\n…y ${open.length - 15} más` : '') +
+      `\n\nSi es contenido inapropiado, añadidla a la «Lista negra» del perfil en NextDNS.`);
+  }
+  if (closed.length) {
+    const n = hits.filter((h) => h.blocked).length;
+    out.push(`🚩 <b>${escapeHtml(p.name)}</b> ha intentado entrar en webs bloqueadas (${n}):\n` +
+      closed.slice(0, 15).map(fmt).join('\n') + (closed.length > 15 ? `\n…y ${closed.length - 15} más` : ''));
+  }
+  return out;
 }
 
 // ---------- 2. móvil que deja de usar NextDNS ----------
