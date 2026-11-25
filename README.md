@@ -13,8 +13,8 @@ Los anuncios y rastreadores bloqueados no avisan.
 
 ### 1. Bot de Telegram (5 min)
 1. En Telegram, habla con **@BotFather** → `/newbot` → ponle nombre (p. ej. `Vigilante`). Te da un **token**.
-2. Crea un **grupo** con las personas que se supervisan y el bot. Escribe cualquier cosa en el grupo.
-3. Abre `https://api.telegram.org/bot<TOKEN>/getUpdates` en el navegador y copia el `"chat":{"id":-100…}`. Ese número (con el signo menos) es el **chat id**.
+2. Opción A, por privado: cada persona abre el bot y pulsa *Iniciar*. Su id de usuario se puede ver con @userinfobot.
+3. Opción B, grupo: crea un grupo con las personas y el bot, escribe algo, abre `https://api.telegram.org/bot<TOKEN>/getUpdates` y copia el `"chat":{"id":-100…}`.
 
 ### 2. API keys de NextDNS
 Cada cuenta tiene la suya, al final de https://my.nextdns.io/account (sección API).
@@ -24,7 +24,7 @@ Para la supervisión mutua, cada perfil está en la cuenta de la **otra** person
 1. El repo es **público** porque en los privados los minutos gratis de Actions no llegan para ejecutarlo cada 5 min. El código no contiene datos personales y la consola no imprime dominios ni nombres.
 2. *Settings → Secrets and variables → Actions → New repository secret*:
    - `TELEGRAM_BOT_TOKEN`: el token del bot.
-   - `TELEGRAM_CHAT_ID`: el id del grupo.
+   - `TELEGRAM_CHAT_ID`: el id de un grupo, o varios ids de usuario separados por comas (`111,222`) para que el aviso llegue a cada uno por privado. Cada persona tiene que abrir el bot y pulsar *Iniciar* una vez.
    - `PROFILES_JSON`:
      ```json
      [
