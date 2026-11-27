@@ -39,10 +39,78 @@ const SUSPICIOUS_REASON =
 // Webs cuyo NOMBRE suena a contenido adulto. Avisan aunque NextDNS NO las haya bloqueado
 // (así se ven las que se escapan del filtro). No se puede ver el texto de una búsqueda:
 // DNS solo sabe a qué web se conecta el móvil.
-const SUSPICIOUS_DOMAIN =
-  /porn|xxx|xvideo|xnxx|xhamster|hentai|nsfw|onlyfans|fansly|chaturbate|stripchat|bongacams|camsoda|livejasmin|myfreecams|escort|nude|naked|desnud|(^|[.-])putas?\b|follar|(^|[.-])sex|sexy|sexo|erotic|erotik|milf|camgirl|adult/i;
+const SUSPICIOUS_DOMAIN = new RegExp([
+  // contenido adulto
+  'porn', 'xxx', 'xvideo', 'xnxx', 'xhamster', 'hentai', 'nsfw', 'onlyfans', 'fansly', 'manyvids', 'clips4sale',
+  'chaturbate', 'stripchat', 'bongacams', 'camsoda', 'livejasmin', 'myfreecams', 'cam4', 'camgirl', 'webcamsex',
+  'escort', 'nude', 'naked', 'desnud', '(^|[.-])putas?\\b', 'follar', '(^|[.-])sex', 'sexy', 'sexo', 'erotic',
+  'erotik', 'milf', 'adult', 'hookup', 'fetish', 'bdsm', 'redtube', 'youporn', 'spankbang', 'rule34', 'e621',
+  'nhentai', 'pornhub', 'eporner', 'motherless', 'fapello', 'thothub', 'coomer', 'kemono', 'leakedmodels',
+  'erome', 'scrolller', 'lustery', 'pussy', 'boob', 'tits\\b', 'hot-?girls', 'mujeres-?calientes',
+  'masaje-?erotico', 'nuditas', 'pajillero',
+  // chat anónimo / con desconocidos
+  'omegle', 'ome\\.tv', 'chatroulette', 'emeraldchat', 'chatrandom', 'camsurf', 'shagle', 'coomeet', 'chathub',
+  // IA de imágenes o chat "sin censura"
+  'candy\\.ai', 'crushon', 'janitorai', 'spicychat', 'undress', 'deepnude', 'nudify', 'clothoff',
+].join('|'), 'i');
 // Falsos positivos conocidos (lugares, etc.).
-const DOMAIN_EXCEPTIONS = /essex|sussex|middlesex|wessex|adultswim/i;
+const DOMAIN_EXCEPTIONS = /essex|sussex|middlesex|wessex|adultswim|relaxing|camboo/i;
+
+// Bloqueos de "método de evasión" que hacen solos Chrome, Firefox y Android al intentar
+// usar su propio DNS seguro. No son intencionados: no avisamos de ellos.
+// Sí se sigue avisando si el bloqueo es de una VPN, un proxy o Tor.
+const AUTOMATIC_DOH =
+  /(^|\.)(cloudflare-dns\.com|one\.one\.one\.one|1dot1dot1dot1\.cloudflare-dns\.com|dns\.google|dns\.google\.com|dns64\.dns\.google|dns\.quad9\.net|dns11\.quad9\.net|doh\.opendns\.com|doh\.familyshield\.opendns\.com|dns\.adguard(-dns)?\.com|doh\.cleanbrowsing\.org|dns\.nextdns\.io|chrome\.cloudflare-dns\.com|mozilla\.cloudflare-dns\.com|doh\.dns\.sb|dns\.alidns\.com|doh\.pub|dns\.controld\.com|freedns\.controld\.com|use-application-dns\.net)$/i;
+
+// Apps que se reconocen por los servidores a los que se conectan.
+// "riesgo: true" = avisa siempre la primera vez que aparece (aunque sea el primer día).
+// El resto avisa solo si aparece una app que antes no se usaba.
+const APPS = [
+  // citas
+  { name: 'Tinder', re: /(^|\.)(tinder\.com|gotinder\.com|tindersparks\.com)$/i, riesgo: true },
+  { name: 'Bumble', re: /(^|\.)(bumble\.com|bumbcdn\.com|bumble\.net)$/i, riesgo: true },
+  { name: 'Badoo', re: /(^|\.)(badoo\.com|badoocdn\.com)$/i, riesgo: true },
+  { name: 'Hinge', re: /(^|\.)(hinge\.co|hingeaws\.net)$/i, riesgo: true },
+  { name: 'Grindr', re: /(^|\.)(grindr\.com|grindr\.mobi|grindr\.net)$/i, riesgo: true },
+  { name: 'Happn', re: /(^|\.)happn\.(com|fr|app)$/i, riesgo: true },
+  { name: 'Meetic', re: /(^|\.)meetic\.(es|com|fr)$/i, riesgo: true },
+  { name: 'OkCupid', re: /(^|\.)okcupid\.com$/i, riesgo: true },
+  { name: 'Lovoo', re: /(^|\.)lovoo\.(com|net)$/i, riesgo: true },
+  { name: 'Feeld', re: /(^|\.)feeld\.co$/i, riesgo: true },
+  { name: 'Ashley Madison', re: /(^|\.)ashleymadison\.com$/i, riesgo: true },
+  { name: 'Wapo/Wapa', re: /(^|\.)(wapo\.app|wapa\.app|wapo\.com)$/i, riesgo: true },
+  // contenido adulto / creadores
+  { name: 'OnlyFans', re: /(^|\.)onlyfans\.com$/i, riesgo: true },
+  { name: 'Fansly', re: /(^|\.)fansly\.com$/i, riesgo: true },
+  // VPN, proxy, Tor (sirven para saltarse el filtro)
+  { name: 'NordVPN', re: /(^|\.)(nordvpn\.com|nordcdn\.com|nordvpn\.net)$/i, riesgo: true },
+  { name: 'ExpressVPN', re: /(^|\.)(expressvpn\.com|expressapisv2\.net|xvservice\.net)$/i, riesgo: true },
+  { name: 'ProtonVPN', re: /(^|\.)(protonvpn\.com|protonvpn\.ch|vpn-api\.proton\.me)$/i, riesgo: true },
+  { name: 'Surfshark', re: /(^|\.)(surfshark\.com|surfsharkdns\.com)$/i, riesgo: true },
+  { name: 'Windscribe', re: /(^|\.)(windscribe\.com|windscribe\.net|totallyacdn\.com)$/i, riesgo: true },
+  { name: 'Psiphon', re: /(^|\.)psiphon\d*\.(ca|com|net)$/i, riesgo: true },
+  { name: 'Hola VPN', re: /(^|\.)(hola\.org|holavpn\.net|h-vpn\.org)$/i, riesgo: true },
+  { name: 'TunnelBear', re: /(^|\.)tunnelbear\.com$/i, riesgo: true },
+  { name: 'Hotspot Shield', re: /(^|\.)(hotspotshield\.com|hsselite\.com|northghost\.com)$/i, riesgo: true },
+  { name: 'Turbo VPN', re: /(^|\.)(turbovpn\.(com|co)|innovativeconnecting\.com)$/i, riesgo: true },
+  { name: 'Cloudflare WARP', re: /(^|\.)(cloudflareclient\.com|warp\.plus|zero-trust-client\.cloudflareclient\.com)$/i, riesgo: true },
+  { name: 'Tor / Orbot', re: /(^|\.)(torproject\.org|guardianproject\.info|onion\.(ws|ly|to))$/i, riesgo: true },
+  // navegadores "de incógnito" o con VPN incorporada
+  { name: 'Opera (VPN integrada)', re: /(^|\.)(opera\.com|operacdn\.com|opera-api\.com|op-vpn\.com)$/i, riesgo: true },
+  { name: 'Tor Browser', re: /(^|\.)torbrowser/i, riesgo: true },
+  // mensajería / redes donde se cuela contenido
+  { name: 'Telegram', re: /(^|\.)(telegram\.org|t\.me|telegram\.me|telesco\.pe|tdesktop\.com)$/i },
+  { name: 'Discord', re: /(^|\.)(discord\.com|discord\.gg|discordapp\.com|discordapp\.net|discord\.media)$/i },
+  { name: 'Reddit', re: /(^|\.)(reddit\.com|redd\.it|redditmedia\.com|redditstatic\.com)$/i },
+  { name: 'X (Twitter)', re: /(^|\.)(twitter\.com|x\.com|twimg\.com|t\.co)$/i },
+  { name: 'Snapchat', re: /(^|\.)(snapchat\.com|sc-cdn\.net|snapkit\.com|snap-dev\.net)$/i },
+  { name: 'TikTok', re: /(^|\.)(tiktok\.com|tiktokv\.com|tiktokcdn\.com|byteoversea\.com|ibytedtos\.com|musical\.ly)$/i },
+  { name: 'Instagram', re: /(^|\.)(instagram\.com|cdninstagram\.com)$/i },
+  { name: 'Tumblr', re: /(^|\.)tumblr\.com$/i },
+  { name: 'Kik', re: /(^|\.)kik\.com$/i, riesgo: true },
+  { name: 'Wink / Yubo / Hoop', re: /(^|\.)(getwinkapp\.com|yubo\.live|hoop\.photo)$/i, riesgo: true },
+  { name: 'Azar / Monkey', re: /(^|\.)(azarlive\.com|hpcnt\.com|monkey\.app|monkey\.cool)$/i, riesgo: true },
+];
 
 const now = () => Date.now();
 const log = (...a) => console.log(...a); // solo mensajes genéricos, nunca datos sensibles
@@ -113,6 +181,7 @@ async function checkBlocked(p, st) {
   // Primera vez: solo miramos los últimos 15 min para no inundar de avisos antiguos.
   const since = st.lastBlockedTs || new Date(now() - 15 * 60000).toISOString();
   const hits = [];
+  const appsNow = new Map();
   let newest = since;
   let cursor;
   // Se leen TODAS las consultas (bloqueadas y permitidas) para pillar también
@@ -127,6 +196,10 @@ async function checkBlocked(p, st) {
       if (!deviceMatches(e, p)) continue;
       const reasons = (e.reasons || []).map((x) => x.name || x.id);
       const blocked = e.status === 'blocked';
+      // Apps reconocidas por el servidor al que se conectan.
+      for (const app of APPS) if (app.re.test(e.domain || '')) appsNow.set(app.name, { app, ts: appsNow.get(app.name)?.ts || e.timestamp });
+      // Ruido: Chrome/Firefox/Android intentando usar su propio DNS seguro.
+      if (blocked && AUTOMATIC_DOH.test(e.domain || '')) continue;
       const badReason = blocked && (reasons.some((x) => SUSPICIOUS_REASON.test(x)) ||
         (e.reasons || []).some((x) => SUSPICIOUS_REASON.test(x.id || '')));
       const badName = SUSPICIOUS_DOMAIN.test(e.domain || '') && !DOMAIN_EXCEPTIONS.test(e.domain || '');
@@ -141,7 +214,26 @@ async function checkBlocked(p, st) {
     if (!cursor) break;
   }
   st.lastBlockedTs = newest;
-  if (!hits.length) return [];
+  const out = [];
+
+  // ---- apps nuevas ----
+  // La primera vez que se vigila un perfil solo se apunta qué apps se usan (sin avisar),
+  // salvo las de riesgo (citas, VPN, contenido adulto...), que avisan siempre.
+  const firstTime = !st.seenApps;
+  st.seenApps ||= {};
+  const newApps = [];
+  for (const [name, { app, ts }] of appsNow) {
+    if (st.seenApps[name]) continue;
+    st.seenApps[name] = ts;
+    if (!firstTime || app.riesgo) newApps.push({ name, ts, riesgo: !!app.riesgo });
+  }
+  if (newApps.length) {
+    const lines = newApps.map((a) => `• ${localParts(new Date(a.ts)).hhmm} · ${a.riesgo ? '⚠️ ' : ''}${escapeHtml(a.name)}`);
+    out.push(`📱 <b>${escapeHtml(p.name)}</b> ha empezado a usar una app que antes no usaba:\n${lines.join('\n')}` +
+      (newApps.some((a) => a.riesgo) ? `\n\n⚠️ = app de citas, VPN o contenido adulto.` : ''));
+  }
+
+  if (!hits.length) return out;
 
   // Agrupa por dominio para que el mensaje sea corto.
   const byDomain = new Map();
@@ -153,7 +245,6 @@ async function checkBlocked(p, st) {
   const all = [...byDomain.values()];
   const open = all.filter((h) => !h.blocked);
   const closed = all.filter((h) => h.blocked);
-  const out = [];
   if (open.length) {
     out.push(`🚨 <b>${escapeHtml(p.name)}</b> ha entrado en webs de contenido sospechoso que el filtro <b>NO</b> ha bloqueado:\n` +
       open.slice(0, 15).map(fmt).join('\n') + (open.length > 15 ? `\n…y ${open.length - 15} más` : '') +
